@@ -11,13 +11,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class HomeRecipeController {
 
 	private final HomeRecipeService homeRecipeService;
+	private final HomeRecommendationService homeRecommendationService;
 
-	public HomeRecipeController(HomeRecipeService homeRecipeService) {
+	public HomeRecipeController(HomeRecipeService homeRecipeService,
+			HomeRecommendationService homeRecommendationService) {
 		this.homeRecipeService = homeRecipeService;
+		this.homeRecommendationService = homeRecommendationService;
 	}
 
 	@GetMapping("/recent-recipes")
 	public List<RecentRecipeResponse> recentRecipes() {
 		return homeRecipeService.findRecentRecipes();
+	}
+
+	@GetMapping("/recommendations")
+	public List<RecommendedRecipeResponse> recommendations() {
+		return homeRecommendationService.findRecommendations();
 	}
 }

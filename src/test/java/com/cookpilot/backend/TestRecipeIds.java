@@ -15,6 +15,10 @@ public final class TestRecipeIds {
 			UUID.fromString("10000000-0000-0000-0000-000000000004");
 	public static final UUID EGG_FRIED_RICE_RECIPE_ID =
 			UUID.fromString("10000000-0000-0000-0000-000000000005");
+	public static final UUID SPICY_PORK_RECIPE_ID =
+			UUID.fromString("10000000-0000-0000-0000-000000000006");
+	public static final UUID DAKGALBI_RECIPE_ID =
+			UUID.fromString("10000000-0000-0000-0000-000000000008");
 
 	private TestRecipeIds() {
 	}

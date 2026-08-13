@@ -20,8 +20,8 @@ public class CookingCoachClient {
 
 	private static final Logger log = LoggerFactory.getLogger(CookingCoachClient.class);
 
-	/** 안전 원칙은 모델 재량에 맡기지 않고 여기에 고정한다. */
-	private static final String SYSTEM_PROMPT = """
+	/** 안전 원칙은 모델 재량에 맡기지 않고 여기에 고정한다. Live 세션(AiLiveSessionService)도 공유한다. */
+	static final String SYSTEM_PROMPT = """
 			당신은 CookPilot의 조리 중 음성 어시스턴트입니다.
 			사용자는 지금 불 앞에 서 있고, 손이 젖어 있으며, 답변을 귀로만 듣습니다.
 

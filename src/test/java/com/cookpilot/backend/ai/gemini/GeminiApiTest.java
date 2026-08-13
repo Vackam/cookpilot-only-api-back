@@ -1,4 +1,4 @@
-package com.cookpilot.backend.recommendation.explanation;
+package com.cookpilot.backend.ai.gemini;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -20,8 +20,8 @@ class GeminiApiTest {
 
 	private final ObjectMapper objectMapper = JsonMapper.builder().build();
 
-	private GeminiRecommendationExplanationClient client() {
-		return new GeminiRecommendationExplanationClient(
+	private GeminiReasonsClient client() {
+		return new GeminiReasonsClient(
 				new GeminiProperties(false, "", "gemini-3.5-flash", "http://localhost",
 						Duration.ofSeconds(2), Duration.ofSeconds(4)),
 				objectMapper);
@@ -30,7 +30,7 @@ class GeminiApiTest {
 	@Test
 	void 요청_JSON이_Gemini_와이어_포맷_그대로_나간다() {
 		JsonNode schema = objectMapper.readTree(
-				GeminiRecommendationExplanationClient.REASONS_SCHEMA);
+				GeminiReasonsClient.REASONS_SCHEMA);
 		GeminiApi.GenerateContentRequest request = GeminiApi.GenerateContentRequest.ofUserText(
 				"프롬프트", new GeminiApi.GenerationConfig(0.2, 1024, "application/json", schema,
 						new GeminiApi.ThinkingConfig(0)));
@@ -46,7 +46,7 @@ class GeminiApiTest {
 				    "thinkingConfig": {"thinkingBudget": 0}
 				  }
 				}
-				""".formatted(GeminiRecommendationExplanationClient.REASONS_SCHEMA));
+				""".formatted(GeminiReasonsClient.REASONS_SCHEMA));
 
 		JsonNode actual = objectMapper.valueToTree(request);
 		assertThat(actual).isEqualTo(expected);
@@ -65,21 +65,21 @@ class GeminiApiTest {
 				}
 				""", GeminiApi.GenerateContentResponse.class);
 
-		assertThat(client().parseReasons(response)).contains(List.of("한 줄"));
+		assertThat(client().parseReasons(response, 1)).contains(List.of("한 줄"));
 	}
 
 	@Test
 	void 코드펜스로_감싸_와도_벗겨서_읽는다() {
 		assertThat(client().parseReasons(responseWithText(
-				"```json\n{\"reasons\":[\"한 줄\"]}\n```")))
+				"```json\n{\"reasons\":[\"한 줄\"]}\n```"), 1))
 				.contains(List.of("한 줄"));
 	}
 
 	@Test
 	void 후보가_없으면_비운다() {
-		assertThat(client().parseReasons(new GeminiApi.GenerateContentResponse(List.of())))
+		assertThat(client().parseReasons(new GeminiApi.GenerateContentResponse(List.of()), 1))
 				.isEmpty();
-		assertThat(client().parseReasons(null)).isEmpty();
+		assertThat(client().parseReasons(null, 1)).isEmpty();
 	}
 
 	@Test
@@ -87,22 +87,31 @@ class GeminiApiTest {
 		// 상한(180자) 초과
 		String tooLong = "가".repeat(181);
 		assertThat(client().parseReasons(responseWithText(
-				"{\"reasons\":[\"%s\"]}".formatted(tooLong)))).isEmpty();
+				"{\"reasons\":[\"%s\"]}".formatted(tooLong)), 1)).isEmpty();
 		// 줄바꿈 포함
 		assertThat(client().parseReasons(responseWithText(
-				"{\"reasons\":[\"두\\n줄\"]}"))).isEmpty();
+				"{\"reasons\":[\"두\\n줄\"]}"), 1)).isEmpty();
 		// 빈 문자열
 		assertThat(client().parseReasons(responseWithText(
-				"{\"reasons\":[\"\"]}"))).isEmpty();
+				"{\"reasons\":[\"\"]}"), 1)).isEmpty();
 		// reasons 키 자체가 없음
-		assertThat(client().parseReasons(responseWithText("{}"))).isEmpty();
+		assertThat(client().parseReasons(responseWithText("{}"), 1)).isEmpty();
 		// JSON 이 아님
-		assertThat(client().parseReasons(responseWithText("설명입니다"))).isEmpty();
+		assertThat(client().parseReasons(responseWithText("설명입니다"), 1)).isEmpty();
+	}
+
+	@Test
+	void 개수가_어긋난_응답은_통째로_버린다() {
+		// 어느 문구가 어느 추천에 붙는지 알 수 없으므로 부분 채택하지 않는다.
+		assertThat(client().parseReasons(responseWithText(
+				"{\"reasons\":[\"하나\",\"둘\"]}"), 3)).isEmpty();
+		assertThat(client().parseReasons(responseWithText(
+				"{\"reasons\":[\"하나\",\"둘\",\"셋\",\"넷\"]}"), 3)).isEmpty();
 	}
 
 	@Test
 	void 빈_reasons_배열은_빈_목록으로_통과한다() {
-		assertThat(client().parseReasons(responseWithText("{\"reasons\":[]}")))
+		assertThat(client().parseReasons(responseWithText("{\"reasons\":[]}"), 0))
 				.contains(List.of());
 	}
 

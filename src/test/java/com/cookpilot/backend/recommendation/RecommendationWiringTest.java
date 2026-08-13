@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 
-import com.cookpilot.backend.recommendation.explanation.GeminiProperties;
+import com.cookpilot.backend.ai.gemini.GeminiProperties;
 import com.cookpilot.backend.recommendation.explanation.GeminiRecommendationExplanationClient;
 import com.cookpilot.backend.recommendation.explanation.RecommendationExplanationService;
 import com.cookpilot.backend.recommendation.feedback.RecommendationFeedbackRepository;

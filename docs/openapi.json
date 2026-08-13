@@ -30,6 +30,27 @@
         },
         "type" : "object"
       },
+      "AiLiveSessionRequest" : {
+        "properties" : {
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "required" : [ "recipeId" ],
+        "type" : "object"
+      },
+      "AiLiveSessionResponse" : {
+        "properties" : {
+          "model" : {
+            "type" : "string"
+          },
+          "token" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ComposedIngredient" : {
         "properties" : {
           "amount" : {
@@ -855,6 +876,34 @@
         "tags" : [ "ai-feedback-controller" ]
       }
     },
+    "/api/v1/ai-sessions" : {
+      "post" : {
+        "operationId" : "open",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AiLiveSessionRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiLiveSessionResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "ai-live-session-controller" ]
+      }
+    },
     "/api/v1/cooking-history" : {
       "get" : {
         "operationId" : "history",
@@ -1360,6 +1409,6 @@
   },
   "servers" : [ {
     "description" : "Generated server url",
-    "url" : "http://localhost"
+    "url" : "http://localhost:8080"
   } ]
 }

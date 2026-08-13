@@ -1,4 +1,4 @@
-package com.cookpilot.backend.recommendation.explanation;
+package com.cookpilot.backend.ai.gemini;
 
 import java.util.List;
 import java.util.Optional;
@@ -7,7 +7,7 @@ import tools.jackson.databind.JsonNode;
 
 /**
  * Gemini generateContent 요청·응답 와이어 포맷. 이 패키지 밖으로 나가지 않는 벤더 전용 DTO 다
- * (도메인 타입은 RecommendationExplanationContext / Explanation 쪽).
+ * ({@link GeminiReasonsClient} 만 만지고, 기능 패키지는 프롬프트 문자열과 문구 목록만 주고받는다).
  *
  * Gemini 는 usageMetadata·finishReason·modelVersion 처럼 우리가 쓰지 않는 필드를 계속
  * 늘려 보내지만, Jackson 3 은 모르는 필드를 기본으로 무시하므로 별도 애너테이션이 필요 없다

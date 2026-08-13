@@ -20,7 +20,7 @@ import java.util.UUID;
  * 조회·트랜잭션은 {@link RecommendationDraftLoader} 가 맡고, 이 클래스는 "어떤 근거를
  * 채택하고 얼마를 제안할지"만 결정한다. 추천 임계값은 전부 여기 모여 있다.
  */
-final class RecommendationRuleEngine {
+public final class RecommendationRuleEngine {
 
 	/** 추천 1건에 필요한 최소 근거 조리 횟수. 1회는 우연일 수 있어 2회부터 본다. */
 	private static final int MIN_EVIDENCE_COUNT = 2;
@@ -56,7 +56,7 @@ final class RecommendationRuleEngine {
 	}
 
 	/** 판정 입력용 맛 프로파일. 유사도 계산에 쓰는 4개 축만 담는다. */
-	record FlavorProfile(
+	public record FlavorProfile(
 			String cuisine,
 			String dishType,
 			List<String> cookingMethods,
@@ -88,7 +88,7 @@ final class RecommendationRuleEngine {
 	 * 같은 레시피면 taxonomy 를 보지 않고 1 이다. 즉 프로파일 값은 "다른 레시피의
 	 * 기록을 끌어올 때"만 실제로 영향을 준다.
 	 */
-	static double profileSimilarity(
+	public static double profileSimilarity(
 			FlavorProfile target, FlavorProfile source, boolean sameRecipe) {
 		if (source == null) {
 			return 0;

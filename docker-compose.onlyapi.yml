@@ -1,0 +1,78 @@
+# only-api 브랜치 테스트용. 기존 /home/ubuntu/backend 운영 스택(8081)과 나란히 뜬다.
+#
+#   docker compose -f docker-compose.onlyapi.yml up -d --build
+#   docker compose -f docker-compose.onlyapi.yml logs -f app
+#   docker compose -f docker-compose.onlyapi.yml down          # 볼륨은 남는다
+#   docker compose -f docker-compose.onlyapi.yml down -v       # DB까지 폐기
+#
+# prod 파일과 다른 점은 세 가지뿐이다:
+#   1. GHCR pull 이 아니라 소스 빌드 — CI 는 main push 에서만 이미지를 올리므로
+#      ghcr :latest 를 쓰면 only-api 가 아니라 main 이 뜬다. 브랜치를 테스트하는 의미가 없다.
+#   2. watchtower 라벨을 false 로 — 운영 스택의 watchtower 가 docker.sock 전역 감시라
+#      compose 프로젝트를 안 가린다. true 로 두면 5분 뒤 ghcr :latest(=main)로 갈아끼운다.
+#   3. 포트를 8082 / 5433 으로 — 8080(chartdb nginx), 8081(운영 app), 5432(운영 db) 회피.
+#
+# 볼륨은 compose 프로젝트명(only-api-server)으로 네임스페이스되어 only-api-server_pgdata 가
+# 된다. 운영의 backend_pgdata 와 별개이므로 운영 데이터는 건드리지 않는다.
+
+services:
+  app:
+    build:
+      context: .
+      args:
+        # /actuator/info 에 커밋을 드러낸다. 안 넘기면 unknown 이 되어
+        # 8081(운영)과 8082(테스트)가 같은 리비전인지 구분할 수 없다.
+        # up 할 때 GIT_SHA=$(git rev-parse HEAD) 를 환경에서 주입한다.
+        GIT_SHA: ${GIT_SHA:-unknown}
+    image: cookpilot-backend:only-api
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8082}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: db
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      GEMINI_LIVE_MODEL: ${GEMINI_LIVE_MODEL:-gemini-3.1-flash-live-preview}
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-none}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gemini-3.5-flash}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    labels:
+      # 운영 watchtower 가 이 컨테이너를 건드리지 못하게 명시적으로 끈다.
+      # (--label-enable 은 값이 true 인 컨테이너만 감시한다)
+      com.centurylinklabs.watchtower.enable: "false"
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    ports:
+      # 운영 db 가 5432 를 쓰므로 5433. 루프백 전용 — SSH 터널로만 붙는다.
+      - "127.0.0.1:${DB_PORT:-5433}:5432"
+
+# watchtower 서비스는 없다. 운영 스택에 이미 하나 돌고 있고, 소스 빌드 이미지는
+# 레지스트리에 없어서 폴링할 대상 자체가 없다.
+
+volumes:
+  pgdata:

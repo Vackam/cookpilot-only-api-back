@@ -1,4 +1,4 @@
-package com.cookpilot.backend.recommendation.explanation;
+package com.cookpilot.backend.ai.gemini;
 
 import java.time.Duration;
 
