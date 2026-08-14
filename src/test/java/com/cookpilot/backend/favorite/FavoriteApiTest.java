@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
+import com.cookpilot.backend.recipe.RecipeService;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -60,10 +61,10 @@ class FavoriteApiTest extends PostgresApiTestBase {
 				.andExpect(jsonPath("$", hasSize(1)))
 				.andExpect(jsonPath("$[0].id").value(TestRecipeIds.RAMEN_RECIPE_ID.toString()));
 
-		mockMvc.perform(get("/api/v1/recipes"))
+		mockMvc.perform(get("/api/v1/recipes?size=" + RecipeService.MAX_PAGE_SIZE))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath(
-						"$[?(@.id == '" + TestRecipeIds.RAMEN_RECIPE_ID + "')].favorite")
+						"$.items[?(@.id == '" + TestRecipeIds.RAMEN_RECIPE_ID + "')].favorite")
 						.value(contains(true)));
 
 		mockMvc.perform(delete(path))

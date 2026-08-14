@@ -3,6 +3,8 @@ package com.cookpilot.backend.recipe;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +13,8 @@ import com.cookpilot.backend.common.NotFoundException;
 @Service
 @Transactional(readOnly = true)
 public class RecipeService {
+
+	public static final int MAX_PAGE_SIZE = 100;
 
 	private final RecipeRepository recipeRepository;
 	private final RecipeIngredientRepository recipeIngredientRepository;
@@ -24,10 +28,15 @@ public class RecipeService {
 		this.recipeStepRepository = recipeStepRepository;
 	}
 
-	public List<RecipeOverview> findAll() {
-		return recipeRepository.findByStatusOrderByTitleAscIdAsc("active").stream()
-				.map(this::toOverview)
-				.toList();
+	public Page<RecipeOverview> findPage(int page, int size) {
+		if (page < 0) {
+			throw new IllegalArgumentException("page 는 0 이상이어야 합니다: " + page);
+		}
+		if (size < 1 || size > MAX_PAGE_SIZE) {
+			throw new IllegalArgumentException("size 는 1 이상 " + MAX_PAGE_SIZE + " 이하여야 합니다: " + size);
+		}
+		return recipeRepository.findByStatusOrderByTitleAscIdAsc("active", PageRequest.of(page, size))
+				.map(this::toOverview);
 	}
 
 	public Recipe findById(UUID recipeId) {

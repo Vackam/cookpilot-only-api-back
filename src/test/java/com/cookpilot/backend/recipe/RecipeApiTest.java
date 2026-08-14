@@ -10,10 +10,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
+import com.jayway.jsonpath.JsonPath;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -42,13 +44,53 @@ class RecipeApiTest extends PostgresApiTestBase {
 	void 레시피_목록을_조회한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(2))))
-				.andExpect(jsonPath("$[0].id").exists())
-				.andExpect(jsonPath("$[0].title").exists())
-				.andExpect(jsonPath("$[0].hasPersonalVersion").exists())
-				.andExpect(jsonPath("$[0].favorite").exists())
-				.andExpect(jsonPath("$[0].ingredients").doesNotExist())
-				.andExpect(jsonPath("$[0].steps").doesNotExist());
+				.andExpect(jsonPath("$.items", hasSize(greaterThanOrEqualTo(2))))
+				.andExpect(jsonPath("$.items[0].id").exists())
+				.andExpect(jsonPath("$.items[0].title").exists())
+				.andExpect(jsonPath("$.items[0].hasPersonalVersion").exists())
+				.andExpect(jsonPath("$.items[0].favorite").exists())
+				.andExpect(jsonPath("$.items[0].ingredients").doesNotExist())
+				.andExpect(jsonPath("$.items[0].steps").doesNotExist());
+	}
+
+	@Test
+	void 목록은_기본_10건까지만_반환한다() throws Exception {
+		mockMvc.perform(get("/api/v1/recipes"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.page").value(0))
+				.andExpect(jsonPath("$.size").value(10))
+				.andExpect(jsonPath("$.items", hasSize(lessThanOrEqualTo(10))))
+				.andExpect(jsonPath("$.totalElements").value(greaterThanOrEqualTo(8)));
+	}
+
+	@Test
+	void 다음_페이지는_앞_페이지와_겹치지_않는다() throws Exception {
+		String first = firstItemId(0);
+		String second = firstItemId(1);
+
+		mockMvc.perform(get("/api/v1/recipes?page=0&size=1"))
+				.andExpect(jsonPath("$.hasNext").value(true));
+		org.assertj.core.api.Assertions.assertThat(first).isNotEqualTo(second);
+	}
+
+	@Test
+	void 잘못된_페이지_인자는_400을_반환한다() throws Exception {
+		mockMvc.perform(get("/api/v1/recipes?size=0"))
+				.andExpect(status().isBadRequest());
+		mockMvc.perform(get("/api/v1/recipes?page=-1"))
+				.andExpect(status().isBadRequest());
+		mockMvc.perform(get("/api/v1/recipes?size=101"))
+				.andExpect(status().isBadRequest());
+	}
+
+	private String firstItemId(int page) throws Exception {
+		return JsonPath.read(
+				mockMvc.perform(get("/api/v1/recipes?page=" + page + "&size=1"))
+						.andExpect(status().isOk())
+						.andReturn()
+						.getResponse()
+						.getContentAsString(),
+				"$.items[0].id");
 	}
 
 	@Test
@@ -58,7 +100,7 @@ class RecipeApiTest extends PostgresApiTestBase {
 		recipeRepository.save(new RecipeEntity(
 				"동일 제목 정렬 검증", "두 번째", BigDecimal.ONE));
 
-		List<String> actual = recipeService.findAll().stream()
+		List<String> actual = recipeService.findPage(0, RecipeService.MAX_PAGE_SIZE).getContent().stream()
 				.filter(recipe -> recipe.title().equals("동일 제목 정렬 검증"))
 				.map(RecipeOverview::id)
 				.map(UUID::toString)
@@ -113,10 +155,11 @@ class RecipeApiTest extends PostgresApiTestBase {
 				recipe.getId(), 0, "물을 끓이고 된장을 풀어요.", 120, null,
 				"https://cdn.cookpilot.app/steps/doenjang-1.png"));
 
-		mockMvc.perform(get("/api/v1/recipes"))
+		// 기본 페이지(10건)에 들어온다는 보장이 없어 한 페이지에 몰아 담아 확인한다.
+		mockMvc.perform(get("/api/v1/recipes?size=" + RecipeService.MAX_PAGE_SIZE))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$[?(@.id == '" + recipe.getId() + "')]", hasSize(1)))
-				.andExpect(jsonPath("$[?(@.id == '" + recipe.getId() + "')].imageUrl")
+				.andExpect(jsonPath("$.items[?(@.id == '" + recipe.getId() + "')]", hasSize(1)))
+				.andExpect(jsonPath("$.items[?(@.id == '" + recipe.getId() + "')].imageUrl")
 						.value(contains("https://cdn.cookpilot.app/recipes/doenjang.png")));
 
 		mockMvc.perform(get("/api/v1/recipes/" + recipe.getId()))

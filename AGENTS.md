@@ -50,7 +50,7 @@ A personal version does **not** snapshot the whole recipe. It stores a **relatio
 
 ## API conventions
 
-All routes under `/api/v1`. Plain DTO JSON in/out (Java `record` DTOs, distinct from JPA `*Entity` classes). Errors are `ProblemDetail`. Existing endpoints: `GET /users/me`, `GET /recipes`, `GET /recipes/{id}`, `POST /reviews`, `GET /reviews/{id}`, `GET /recipes/{id}/reviews`, `GET /recipes/{id}/personal-versions`, `GET /personal-versions/{id}`, `POST /ai-feedback`.
+All routes under `/api/v1`. Plain DTO JSON in/out (Java `record` DTOs, distinct from JPA `*Entity` classes). Errors are `ProblemDetail`. Existing endpoints: `GET /users/me`, `GET /recipes?page=0&size=10` (paged: `{items, page, size, totalElements, hasNext}`), `GET /recipes/{id}`, `POST /reviews`, `GET /reviews/{id}`, `GET /recipes/{id}/reviews`, `GET /recipes/{id}/personal-versions`, `GET /personal-versions/{id}`, `POST /ai-feedback`.
 
 ## Gotchas (Spring Boot 4 / Jackson 3 / Testcontainers 2)
 

@@ -328,6 +328,32 @@
         },
         "type" : "object"
       },
+      "PagedResponseRecipeSummaryResponse" : {
+        "properties" : {
+          "hasNext" : {
+            "type" : "boolean"
+          },
+          "items" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RecipeSummaryResponse"
+            },
+            "type" : "array"
+          },
+          "page" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "size" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "totalElements" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
       "PersonalRecipeVersion" : {
         "properties" : {
           "createdAt" : {
@@ -679,6 +705,53 @@
         },
         "type" : "object"
       },
+      "RecommendedRecipeResponse" : {
+        "properties" : {
+          "bestRating" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "explanationSource" : {
+            "type" : "string"
+          },
+          "favorite" : {
+            "type" : "boolean"
+          },
+          "imageUrl" : {
+            "type" : "string"
+          },
+          "lastCookedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "model" : {
+            "type" : "string"
+          },
+          "promptVersion" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "slot" : {
+            "type" : "string"
+          },
+          "source" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "Setup" : {
         "properties" : {
           "ingredientAdjustments" : {
@@ -984,6 +1057,27 @@
         "tags" : [ "home-recipe-controller" ]
       }
     },
+    "/api/v1/home/recommendations" : {
+      "get" : {
+        "operationId" : "recommendations",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RecommendedRecipeResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "home-recipe-controller" ]
+      }
+    },
     "/api/v1/personal-versions/{versionId}" : {
       "get" : {
         "operationId" : "get_2",
@@ -1014,15 +1108,31 @@
     "/api/v1/recipes" : {
       "get" : {
         "operationId" : "list",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "page",
+          "required" : false,
+          "schema" : {
+            "default" : 0,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "query",
+          "name" : "size",
+          "required" : false,
+          "schema" : {
+            "default" : 10,
+            "format" : "int32",
+            "type" : "integer"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
               "*/*" : {
                 "schema" : {
-                  "items" : {
-                    "$ref" : "#/components/schemas/RecipeSummaryResponse"
-                  },
-                  "type" : "array"
+                  "$ref" : "#/components/schemas/PagedResponseRecipeSummaryResponse"
                 }
               }
             },
@@ -1409,6 +1519,6 @@
   },
   "servers" : [ {
     "description" : "Generated server url",
-    "url" : "http://localhost:8080"
+    "url" : "http://localhost"
   } ]
 }
