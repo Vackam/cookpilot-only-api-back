@@ -40,6 +40,9 @@ class RecipeApiTest extends PostgresApiTestBase {
 	@Autowired
 	private RecipeService recipeService;
 
+	@Autowired
+	private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
 	@Test
 	void 레시피_목록을_조회한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes"))
@@ -91,6 +94,130 @@ class RecipeApiTest extends PostgresApiTestBase {
 						.getResponse()
 						.getContentAsString(),
 				"$.items[0].id");
+	}
+
+	@Test
+	void 요리명과_재료명으로_레시피를_페이지_검색한다() throws Exception {
+		RecipeEntity basilPasta = recipeRepository.save(new RecipeEntity(
+				"검색전용 바질 파스타", "요리명 검색 검증", BigDecimal.valueOf(2)));
+		ingredientRepository.save(new RecipeIngredientEntity(
+				basilPasta.getId(), "생바질", BigDecimal.valueOf(10), "g", true, 0));
+		RecipeEntity tomatoSoup = recipeRepository.save(new RecipeEntity(
+				"검색전용 토마토 수프", "재료명 검색 검증", BigDecimal.valueOf(2)));
+		ingredientRepository.save(new RecipeIngredientEntity(
+				tomatoSoup.getId(), "완숙 토마토", BigDecimal.valueOf(2), "개", true, 0));
+		RecipeEntity inactiveBasil = new RecipeEntity(
+				"검색전용 바질 폐기본", "중복 숨김 검증", BigDecimal.valueOf(2));
+		inactiveBasil.setStatus("inactive");
+		inactiveBasil = recipeRepository.save(inactiveBasil);
+		ingredientRepository.save(new RecipeIngredientEntity(
+				inactiveBasil.getId(), "생바질", BigDecimal.ONE, "g", true, 0));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "바질 파스타"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(basilPasta.getId().toString()))
+				.andExpect(jsonPath("$.items[0].favorite").exists())
+				.andExpect(jsonPath("$.page").value(0))
+				.andExpect(jsonPath("$.totalElements").value(1));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("ingredient", "토마토"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items[0].id").value(tomatoSoup.getId().toString()));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "검색전용")
+				.param("ingredient", "바질")
+				.param("size", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(basilPasta.getId().toString()))
+				.andExpect(jsonPath("$.hasNext").value(false));
+
+		// 범위를 벗어난 페이지는 목록과 같은 규칙 — 빈 결과를 그대로 준다(마지막 페이지로 보정하지 않음).
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "검색전용")
+				.param("page", "999"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(0)))
+				.andExpect(jsonPath("$.totalElements").value(2));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "검색전용")
+				.param("page", "-1"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 분류와_해시태그로_검색을_거르고_응답에_함께_싣는다() throws Exception {
+		RecipeEntity grilledSide = recipeRepository.save(new RecipeEntity(
+				"분류필터전용 더덕구이", "분류 필터 검증", BigDecimal.ONE));
+		RecipeEntity boiledSide = recipeRepository.save(new RecipeEntity(
+				"분류필터전용 시금치무침", "분류 AND 검증", BigDecimal.ONE));
+		jdbc.update("""
+				INSERT INTO recipe_tags (recipe_id, tag_code, axis_code, assigned_by) VALUES
+				  (?::uuid, 'DISH_SIDE', 'DISH', 'IMPORT'),
+				  (?::uuid, 'METHOD_GRILL', 'METHOD', 'IMPORT'),
+				  (?::uuid, 'DISH_SIDE', 'DISH', 'IMPORT'),
+				  (?::uuid, 'METHOD_BOIL', 'METHOD', 'IMPORT')
+				""", grilledSide.getId(), grilledSide.getId(), boiledSide.getId(), boiledSide.getId());
+		jdbc.update("INSERT INTO recipe_hashtags (recipe_id, tag) VALUES (?::uuid, '태그검색 더덕')",
+				grilledSide.getId());
+
+		// 분류 두 개는 AND — 반찬이면서 굽기인 것만.
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "분류필터전용")
+				.param("dishType", "반찬")
+				.param("cookingMethod", "굽기"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(grilledSide.getId().toString()))
+				.andExpect(jsonPath("$.items[0].cookingMethod").value("굽기"))
+				.andExpect(jsonPath("$.items[0].dishType").value("반찬"))
+				.andExpect(jsonPath("$.items[0].hashtags[0]").value("태그검색 더덕"));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("hashtag", "태그검색 더덕"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(grilledSide.getId().toString()));
+
+		// 사전에 없는 분류 값은 400이 아니라 0건.
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("dishType", "없는분류"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(0)))
+				.andExpect(jsonPath("$.totalElements").value(0));
+
+		// 태그가 없는 레시피는 null 분류 + 빈 해시태그 배열.
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "분류필터전용 시금치무침")
+				.param("dishType", "반찬"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items[0].cookingMethod").value("끓이기"))
+				.andExpect(jsonPath("$.items[0].hashtags", hasSize(0)));
+	}
+
+	@Test
+	void 검색어의_LIKE_기호는_와일드카드가_아닌_문자로_검색한다() throws Exception {
+		RecipeEntity literalSymbols = recipeRepository.save(new RecipeEntity(
+				"검색기호 %_ 레시피", "LIKE 기호 검색 검증", BigDecimal.ONE));
+		ingredientRepository.save(new RecipeIngredientEntity(
+				literalSymbols.getId(), "100%_카카오", BigDecimal.ONE, "조각", true, 0));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "%_"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(literalSymbols.getId().toString()));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("ingredient", "%_"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(literalSymbols.getId().toString()));
 	}
 
 	@Test

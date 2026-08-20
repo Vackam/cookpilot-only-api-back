@@ -24,13 +24,16 @@ public class RecipeController {
 	private final RecipeService recipeService;
 	private final PersonalRecipeService personalRecipeService;
 	private final FavoriteService favoriteService;
+	private final RecipeTagLookup recipeTagLookup;
 
 	public RecipeController(RecipeService recipeService,
 			PersonalRecipeService personalRecipeService,
-			FavoriteService favoriteService) {
+			FavoriteService favoriteService,
+			RecipeTagLookup recipeTagLookup) {
 		this.recipeService = recipeService;
 		this.personalRecipeService = personalRecipeService;
 		this.favoriteService = favoriteService;
+		this.recipeTagLookup = recipeTagLookup;
 	}
 
 	@GetMapping
@@ -38,13 +41,36 @@ public class RecipeController {
 			@RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "10") int size) {
 		Page<RecipeOverview> recipePage = recipeService.findPage(page, size);
-		List<RecipeOverview> recipes = recipePage.getContent();
+		return PagedResponse.of(recipePage, summarize(recipePage.getContent()));
+	}
+
+	@GetMapping("/search")
+	public PagedResponse<RecipeSummaryResponse> search(
+			@RequestParam(defaultValue = "") String title,
+			@RequestParam(defaultValue = "") String ingredient,
+			@RequestParam(defaultValue = "") String cookingMethod,
+			@RequestParam(defaultValue = "") String dishType,
+			@RequestParam(defaultValue = "") String hashtag,
+			@RequestParam(defaultValue = "0") int page,
+			@RequestParam(defaultValue = "10") int size) {
+		Page<RecipeOverview> recipePage = recipeService.search(
+				title, ingredient, cookingMethod, dishType, hashtag, page, size);
+		return PagedResponse.of(recipePage, summarize(recipePage.getContent()));
+	}
+
+	private List<RecipeSummaryResponse> summarize(List<RecipeOverview> recipes) {
+		if (recipes.isEmpty()) {
+			return List.of();
+		}
 		List<UUID> recipeIds = recipes.stream().map(RecipeOverview::id).toList();
 		Map<UUID, PersonalRecipeVersion> latestByRecipe = personalRecipeService.findLatestByRecipes(recipeIds);
 		Set<UUID> favoriteRecipeIds = favoriteService.findFavoriteRecipeIds(recipeIds);
-		List<RecipeSummaryResponse> items = recipes.stream()
+		Map<UUID, RecipeTagLookup.RecipeTagSummary> tagsByRecipe = recipeTagLookup.findByRecipes(recipeIds);
+		return recipes.stream()
 				.map(recipe -> {
 					PersonalRecipeVersion latest = latestByRecipe.get(recipe.id());
+					RecipeTagLookup.RecipeTagSummary tags =
+							tagsByRecipe.getOrDefault(recipe.id(), RecipeTagLookup.EMPTY);
 					return new RecipeSummaryResponse(
 							recipe.id(),
 							recipe.title(),
@@ -52,11 +78,13 @@ public class RecipeController {
 							recipe.imageUrl(),
 							latest != null,
 							latest == null ? null : latest.id(),
-							favoriteRecipeIds.contains(recipe.id())
+							favoriteRecipeIds.contains(recipe.id()),
+							tags.cookingMethod(),
+							tags.dishType(),
+							tags.hashtags()
 					);
 				})
 				.toList();
-		return PagedResponse.of(recipePage, items);
 	}
 
 	@GetMapping("/{recipeId}")

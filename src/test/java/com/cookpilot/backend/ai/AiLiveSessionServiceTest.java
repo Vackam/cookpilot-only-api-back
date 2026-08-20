@@ -17,6 +17,7 @@ class AiLiveSessionServiceTest {
 	void systemInstruction은_안전_원칙과_재료_단계_전문을_담는다() {
 		Recipe recipe = new Recipe(
 				UUID.randomUUID(), "간장계란밥", "설명", 1.0, null,
+				null, null, List.of(),
 				List.of(
 						new RecipeIngredient(UUID.randomUUID(), "계란", 2.0, "개", true),
 						new RecipeIngredient(UUID.randomUUID(), "참기름", null, null, false)),

@@ -19,13 +19,16 @@ public class RecipeService {
 	private final RecipeRepository recipeRepository;
 	private final RecipeIngredientRepository recipeIngredientRepository;
 	private final RecipeStepRepository recipeStepRepository;
+	private final RecipeTagLookup recipeTagLookup;
 
 	public RecipeService(RecipeRepository recipeRepository,
 			RecipeIngredientRepository recipeIngredientRepository,
-			RecipeStepRepository recipeStepRepository) {
+			RecipeStepRepository recipeStepRepository,
+			RecipeTagLookup recipeTagLookup) {
 		this.recipeRepository = recipeRepository;
 		this.recipeIngredientRepository = recipeIngredientRepository;
 		this.recipeStepRepository = recipeStepRepository;
+		this.recipeTagLookup = recipeTagLookup;
 	}
 
 	public Page<RecipeOverview> findPage(int page, int size) {
@@ -37,6 +40,34 @@ public class RecipeService {
 		}
 		return recipeRepository.findByStatusOrderByTitleAscIdAsc("active", PageRequest.of(page, size))
 				.map(this::toOverview);
+	}
+
+	public Page<RecipeOverview> search(String title, String ingredient,
+			String cookingMethod, String dishType, String hashtag, int page, int size) {
+		if (page < 0) {
+			throw new IllegalArgumentException("page 는 0 이상이어야 합니다: " + page);
+		}
+		if (size < 1 || size > MAX_PAGE_SIZE) {
+			throw new IllegalArgumentException("size 는 1 이상 " + MAX_PAGE_SIZE + " 이하여야 합니다: " + size);
+		}
+		String normalizedTitle = escapeLikePattern(title == null ? "" : title.trim());
+		String normalizedIngredient = escapeLikePattern(ingredient == null ? "" : ingredient.trim());
+		return recipeRepository.search(
+				"active",
+				normalizedTitle,
+				normalizedIngredient,
+				cookingMethod == null ? "" : cookingMethod.trim(),
+				dishType == null ? "" : dishType.trim(),
+				hashtag == null ? "" : hashtag.trim(),
+				PageRequest.of(page, size))
+				.map(this::toOverview);
+	}
+
+	private String escapeLikePattern(String value) {
+		return value
+				.replace("\\", "\\\\")
+				.replace("%", "\\%")
+				.replace("_", "\\_");
 	}
 
 	public Recipe findById(UUID recipeId) {
@@ -77,12 +108,19 @@ public class RecipeService {
 						step.getImageUrl()))
 				.toList();
 
+		RecipeTagLookup.RecipeTagSummary tags = recipeTagLookup
+				.findByRecipes(List.of(entity.getId()))
+				.getOrDefault(entity.getId(), RecipeTagLookup.EMPTY);
+
 		return new Recipe(
 				entity.getId(),
 				entity.getTitle(),
 				entity.getDescription(),
 				entity.getBaseServings().doubleValue(),
 				entity.getImageUrl(),
+				tags.cookingMethod(),
+				tags.dishType(),
+				tags.hashtags(),
 				ingredients,
 				steps);
 	}
